@@ -1,0 +1,19 @@
+{
+    "name": "allan/phptest",
+    "license": "MPL-2.0",
+    "autoload": {
+        "psr-4": {
+            "Allan\\Phptest\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "skadefro",
+            "email": "allan@openrpa.dk"
+        }
+    ],
+    "require": {
+        "openiap/client": "^0.0.3",
+        "react/event-loop": "^1.5"
+    }
+}
