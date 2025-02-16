@@ -1,0 +1,10 @@
+{
+    "name": "phptest",
+    "version": "0.0.1",
+    "main": "src/cli.hp",
+    "openiap": {
+        "language": "php",
+        "daemon": true,
+        "chromium": false
+    }
+}
