@@ -16,9 +16,12 @@ if (!defined('STDIN') || stream_set_blocking(STDIN, false) !== true) {
 }
 
 use openiap\Client;
-if (Client::load_dotenv() == false) {
-    echo "env missing, please create .env file \n";
-    exit(1);
+$apiurl = getenv('apiurl', true) ?: getenv('apiurl');
+if ($apiurl == null || $apiurl == "") {
+    if (Client::load_dotenv() == false) {
+        echo "env missing, please create .env file \n";
+        exit(1);
+    }
 }
 try {
     // Example Usage
@@ -34,6 +37,27 @@ try {
     // });
     // print("Event ID: $eventId\n");
     $client->connect("");
+
+    // Simple check to see if we are running inside a container, then run the st_func
+    $oidc_config = getenv('oidc_config', true) ?: getenv('oidc_config');
+    if ($oidc_config != null && $oidc_config == "") {
+    }
+    $counter = 0;
+    $timer = Loop::addPeriodicTimer(0.1, function () use ($client, &$counter) {
+        $downloadfolder = __DIR__ . "/downloads";
+        if(!file_exists($downloadfolder)) { mkdir($downloadfolder, 0777, true); }
+        $result = $client->pop_workitem("php1", $downloadfolder);
+        $counter++;
+        if ($result) {
+            echo "Workitem: " . $result['name'] . ", State: " . $result['state'] . "\n";
+            $result['state'] = "successful";
+            $result = $client->update_workitem($result);
+        }
+        if($counter % 500 == 0) {
+            echo "called pop workitem $counter times\n";
+        }
+    });
+
 
     Loop::addReadStream(STDIN, function ($stream) use ($client) {
         $chunk = \trim(\fread($stream, 64 * 1024));

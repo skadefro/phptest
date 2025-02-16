@@ -9,9 +9,12 @@ if (!file_exists(__DIR__ . "./../vendor/autoload.php")) {
 }
 
 use openiap\Client;
-if (Client::load_dotenv() == false) {
-    echo "env missing, please create .env file \n";
-    exit(1);
+$apiurl = getenv('apiurl', true) ?: getenv('apiurl');
+if ($apiurl == null || $apiurl == "") {
+    if (Client::load_dotenv() == false) {
+        echo "env missing, please create .env file \n";
+        exit(1);
+    }
 }
 try {
     // Example Usage
