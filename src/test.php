@@ -24,8 +24,13 @@ try {
     
     // Connect and then signin
     $client->connect("");
-    $client->on_client_event(function($event, $counter) {
+    $client->on_client_event(function($event, $counter)  use ($client) {
         echo "Client Event: " . $event['event'] . ", Counter: " . $counter . "\n";
+        if($event['event'] == "SignedIn") {
+            print("Signed in, cleanup and disconnect again\n");
+            $client->free();
+            unset($client);
+        }
     });
     
     // // Example of signin with username/password
@@ -56,12 +61,12 @@ try {
 
     // Disable tracing when done debugging
     $client->disable_tracing();
-    // $result = $client->push_workitem("q2", (object) ["testkey" => "hasvalue"], "php without file");
-    $workitemfile = [__DIR__ . "/../../testfile.csv"];
-    $result = $client->push_workitem("q2", (object) ["testkey" => "hasvalue"], "php with file", null, $workitemfile);
+    // $result = $client->push_workitem("php1", (object) ["testkey" => "hasvalue"], "php without file");
+    $workitemfile = [__DIR__ . "/../testfile.csv"];
+    $result = $client->push_workitem("php1", (object) ["testkey" => "hasvalue"], "php with file", null, $workitemfile);
     $downloadfolder = __DIR__ . "/downloads";
     if(!file_exists($downloadfolder)) { mkdir($downloadfolder, 0777, true); }
-    $result = $client->pop_workitem("q2", $downloadfolder);
+    $result = $client->pop_workitem("php1", $downloadfolder);
     $result['name'] = "test workitem updated";
     $result['state'] = "successful";
     $result = $client->update_workitem($result);
@@ -152,7 +157,7 @@ try {
     $result = $client->insert_or_update_one("testphpcollection", [ "name" => "Jane Doe", "age" => 30, "now" => time() ], 'name');
     $result = $client->insert_or_update_one("testphpcollection", [ "name" => "John Doe", "age" => 30, "now" => time() ], 'name');
 
-    $uploadfilename = __DIR__ . "/../../testfile.csv";
+    $uploadfilename = __DIR__ . "/../testfile.csv";
     $downloadfolder = __DIR__ . "/downloads";
     if(!file_exists($downloadfolder)) { mkdir($downloadfolder, 0777, true); }
     $result = $client->upload($uploadfilename, "phptestfile.csv");
