@@ -16,19 +16,16 @@ if (!defined('STDIN') || stream_set_blocking(STDIN, false) !== true) {
 }
 
 use openiap\Client;
-$apiurl = getenv('apiurl', true) ?: getenv('apiurl');
-if ($apiurl == null || $apiurl == "") {
-    if (Client::load_dotenv() == false) {
-        echo "env missing, please create .env file \n";
-        exit(1);
-    }
+if (Client::load_dotenv() == false) {
+    echo "env missing, please create .env file \n";
+    exit(1);
 }
 try {
     // Example Usage
 
     $client = new Client();
     // $client->enable_tracing("openiap=debug", "new");
-    $client->enable_tracing("openiap=info", "new");
+    $client->enable_tracing("openiap=info", "");
 
     // print("Init events\n");
     // $eventId = $client->on_client_event(function($event) {
@@ -37,34 +34,51 @@ try {
     // });
     // print("Event ID: $eventId\n");
     $client->connect("");
+    $client->info("Successfully connected to server");
 
-    // Simple check to see if we are running inside a container, then run the st_func
-    $oidc_config = getenv('oidc_config', true) ?: getenv('oidc_config');
-    if ($oidc_config != null && $oidc_config == "") {
-    }
-    $counter = 0;
-    $timer = Loop::addPeriodicTimer(0.1, function () use ($client, &$counter) {
-        $downloadfolder = __DIR__ . "/downloads";
-        if(!file_exists($downloadfolder)) { mkdir($downloadfolder, 0777, true); }
-        $result = $client->pop_workitem("php1", $downloadfolder);
-        $counter++;
-        if ($result) {
-            echo "Workitem: " . $result['name'] . ", State: " . $result['state'] . "\n";
-            $result['state'] = "successful";
-            $result = $client->update_workitem($result);
-        }
-        if($counter % 500 == 0) {
-            echo "called pop workitem $counter times\n";
-        }
-    });
+    // Handler state variables
+    $f64_handler = null;
+    $u64_handler = null;
+    $i64_handler = null;
 
-
-    Loop::addReadStream(STDIN, function ($stream) use ($client) {
+    Loop::addReadStream(STDIN, function ($stream) use ($client, &$f64_handler, &$u64_handler, &$i64_handler) {
         $chunk = \trim(\fread($stream, 64 * 1024));
         switch ($chunk) {
             case 'q':
                 $entities = $client->Query("entities", []);
                 print_r($entities);
+                break;
+            case '1':
+                $client->enable_tracing("", "");
+                break;
+            case '2':
+                $client->enable_tracing("openiap=new", "");
+                break;
+            case '3':
+                $client->enable_tracing("openiap=debug", "new");
+                break;
+            case 'r':
+                $result = $client->register_queue("test2queue", function($message) {
+                    print("Received message: " . json_encode($message) . "\n");
+                    return ['payload' => "Bettina"];
+                });
+                break;
+            case 'r2':
+                // $result = $client->rpc("test2queue", ['payload' => "Test Message"], ['striptoken' => true]);
+                $result = $client->rpc_async("test2queue", ['payload' => "Test Message"], 
+                function($message, $error) {
+                    if ($error) {
+                        print("Error: " . $error . "\n");
+                        return;
+                    }
+                    print("Received response: " . json_encode($message) . "\n");
+                },
+                ['striptoken' => true], 2);
+                print_r($result);
+                break;
+            case 'm':
+                $result = $client->queue_message("test2queue", ['payload' => "Test Message"], ['striptoken' => true]);
+                print_r($result);
                 break;
             case 'i':
                 $result = $client->insert_one("entities", (object) ["name" => "testphp", "value" => 123]);
@@ -77,7 +91,80 @@ try {
                 });
                 print("Watch ID: $watchid \n");
                 break;
+            case 'o':
+                if ($f64_handler) {
+                    $client->disable_observable_gauge("test_f64");
+                    $client->info("stopped test_f64");
+                    Loop::cancelTimer($f64_handler);
+                    $f64_handler = null;
+                } else {
+                    $client->set_f64_observable_gauge("test_f64", 42.7, "test");
+                    $client->info("started test_f64 to 42.7");
+                    $f64_handler = Loop::addPeriodicTimer(30.0, function() use ($client) {
+                        $value = mt_rand() / mt_getrandmax() * 50;
+                        $client->info("Setting test_f64 to " . $value);
+                        $client->set_f64_observable_gauge("test_f64", $value, "test");
+                    });
+                }
+                break;
+            case 'o2': 
+                if ($u64_handler) {
+                    $client->disable_observable_gauge("test_u64");
+                    $client->info("stopped test_u64");
+                    Loop::cancelTimer($u64_handler);
+                    $u64_handler = null;
+                } else {
+                    $client->set_u64_observable_gauge("test_u64", 42, "test");
+                    $client->info("started test_u64 to 42");
+                    $u64_handler = Loop::addPeriodicTimer(30.0, function() use ($client) {
+                        $value = mt_rand(0, 50);
+                        $client->info("Setting test_u64 to " . $value);
+                        $client->set_u64_observable_gauge("test_u64", $value, "test");
+                    });
+                }
+                break;
+            case 'o3':
+                if ($i64_handler) {
+                    $client->disable_observable_gauge("test_i64");
+                    $client->info("stopped test_i64");
+                    Loop::cancelTimer($i64_handler);
+                    $i64_handler = null;
+                } else {
+                    $client->set_i64_observable_gauge("test_i64", 42, "test");
+                    $client->info("started test_i64 to 42");
+                    $i64_handler = Loop::addPeriodicTimer(30.0, function() use ($client) {
+                        $value = mt_rand(0, 50);
+                        $client->info("Setting test_i64 to " . $value); 
+                        $client->set_i64_observable_gauge("test_i64", $value, "test");
+                    });
+                }
+                break;
+            case 'cc':
+                try {
+                    $result = $client->custom_command("getclients");
+                    print("Custom command result: " . $result . "\n");
+                } catch (Exception $e) {
+                    print("Custom command error: " . $e->getMessage() . "\n");
+                }
+                break;
+            case 'rpa':
+                try {
+                    $result = $client->invoke_openrpa(
+                        "5ce94386320b9ce0bc2c3d07",
+                        "5e0b52194f910e30ce9e3e49",
+                        ["test" => "test"],
+                        10
+                    );
+                    print("OpenRPA result: " . $result . "\n");
+                } catch (Exception $e) {
+                    print("OpenRPA error: " . $e->getMessage() . "\n");
+                }
+                break;
             case 'quit':
+                // Cancel any active gauge handlers
+                if ($f64_handler) Loop::cancelTimer($f64_handler);
+                if ($u64_handler) Loop::cancelTimer($u64_handler);
+                if ($i64_handler) Loop::cancelTimer($i64_handler);
                 $client->free();
                 unset($client);                
                 Loop::removeReadStream($stream);
