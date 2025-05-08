@@ -13,7 +13,7 @@
         }
     ],
     "require": {
-        "openiap/client": "0.0.33",
+        "openiap/client": "0.0.38",
         "react/event-loop": "1.5"
     }
 }
